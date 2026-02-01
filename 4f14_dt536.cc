@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <string>
 #include <random>
+#include <thread>
 
 struct StackItem {
     std::string str1;
@@ -61,16 +62,36 @@ void populate_stack(int num, Stack& stack, std::mt19937& mt) {
     }
 }
 
+void thread_init(Stack& stack) {
+    int sum = 0;
+    int minimum = 256;
+    int maximum = -1;
+
+    try {
+        while (true) {
+            StackItem item = stack.pop();
+
+            sum += item.value;
+            if (item.value < minimum) minimum = item.value;
+            if (item.value > maximum) maximum = item.value;
+        }
+    } catch (const std::out_of_range&) {
+        // Stack is empty → thread naturally finishes
+    }
+
+    std::cout << "Sum: " << sum
+              << ", Min: " << minimum
+              << ", Max: " << maximum << std::endl;
+}
 
 int main() {
-    unsigned seed = 12345;          
+    unsigned seed = 123;          
     std::mt19937 mt(seed);
     Stack stack;
-    stack.push("hello", "world", 42);
-    populate_stack(5, stack, mt);
-    for (int i = 0; i < 5; ++i) {
-        StackItem item = stack.pop();
-        std::cout << "Popped item: " << item.str1 << ", " << item.str2 << ", " << item.value << std::endl;
-    }
+    populate_stack(768, stack, mt);
+
+    std::thread t(thread_init, std::ref(stack));
+    t.join();
+
     return 0;
 }
