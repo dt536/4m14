@@ -4,6 +4,9 @@
 #include <string>
 #include <random>
 #include <thread>
+#include <mutex>
+
+std::mutex cout_mutex;
 
 struct StackItem {
     std::string str1;
@@ -17,17 +20,20 @@ struct StackItem {
 class Stack {
 private:
     std::vector<StackItem> items;
+    mutable std::mutex m_;
 
 public:
     // Add an item to the stack
     void push(const std::string& str1,
               const std::string& str2,
               int value) {
+        std::lock_guard<std::mutex> lock(m_);
         items.emplace_back(str1, str2, value);
     }
 
     // Remove and return the top item
     StackItem pop() {
+        std::lock_guard<std::mutex> lock(m_);
         if (items.empty()) {
             throw std::out_of_range("Stack is empty");
         }
@@ -35,6 +41,58 @@ public:
         items.pop_back();
         return top;
     }
+
+    std::size_t size() const {
+        std::lock_guard<std::mutex> lock(m_);
+        return items.size();
+    } 
+
+    int remove_min_max_top(std::mt19937& rng) {
+    // Remove an item with the minimum value and maximum value
+    std::lock_guard<std::mutex> lock(m_);  
+    if (items.empty()) {
+        return 0;
+    }
+    if (!items.empty()){
+        int min = items[0].value;
+        for (const auto& it: items){
+            if (it.value < min){
+                min = it.value;
+            }
+        }
+        std::vector<std::size_t> min_indices;
+        for (std::size_t i = 0; i < items.size(); ++i) {
+            if (items[i].value == min) {
+                min_indices.push_back(i);
+            }
+        }
+        std::uniform_int_distribution<std::size_t> dist(0, min_indices.size() - 1);
+        std::size_t idx = dist(rng);
+        items.erase(items.begin() + idx);
+    }
+
+    if (!items.empty()){
+        int max = items[0].value;
+        for (const auto& it: items){
+            if (it.value > max){
+                max = it.value;
+            }
+        }
+        std::vector<std::size_t> max_indices;
+        for (std::size_t i = 0; i < items.size(); ++i) {
+            if (items[i].value == max) {
+                max_indices.push_back(i);
+            }
+        }
+        std::uniform_int_distribution<std::size_t> dist(0, max_indices.size() - 1);
+        std::size_t idx = dist(rng);
+        items.erase(items.begin() + idx);
+    }
+    if (!items.empty()){
+        items.pop_back();
+    }
+    return 1;
+}
 };
 
 void populate_stack(int num, Stack& stack, std::mt19937& mt) {
@@ -62,36 +120,28 @@ void populate_stack(int num, Stack& stack, std::mt19937& mt) {
     }
 }
 
-void thread_init(Stack& stack) {
-    int sum = 0;
-    int minimum = 256;
-    int maximum = -1;
-
-    try {
-        while (true) {
-            StackItem item = stack.pop();
-
-            sum += item.value;
-            if (item.value < minimum) minimum = item.value;
-            if (item.value > maximum) maximum = item.value;
-        }
-    } catch (const std::out_of_range&) {
-        // Stack is empty → thread naturally finishes
-    }
-
-    std::cout << "Sum: " << sum
-              << ", Min: " << minimum
-              << ", Max: " << maximum << std::endl;
+void thread_remove(Stack& stack){
+    unsigned seed = 123;
+    std::mt19937 mt(seed);
+    while (true) {
+    std::lock_guard<std::mutex> lock(cout_mutex);
+    std::cout << "Stack size: " << stack.size() << std::endl;
+    int removed = stack.remove_min_max_top(mt); // removes min, max, then top
+    std::this_thread::sleep_for(std::chrono::milliseconds(50)); // 0.05s
+    if (removed == 0) break;              
 }
+}
+
 
 int main() {
     unsigned seed = 123;          
     std::mt19937 mt(seed);
     Stack stack;
-    populate_stack(768, stack, mt);
-
-    std::thread t(thread_init, std::ref(stack));
-    t.join();
+    populate_stack(738, stack, mt);
+    std::cout << "Initial stack size: " << stack.size() << std::endl;
+    //thread 4
+    std::thread t4(thread_remove, std::ref(stack));
+    t4.join();
 
     return 0;
 }
