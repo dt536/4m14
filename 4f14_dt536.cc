@@ -35,10 +35,13 @@ public:
     }
 };
 
-void main() {
+int main() {
     Stack stack;
-
     stack.push("hello", "world", 42);
     stack.push("cambridge", "engineering", 100);
-    StackItem item = stack.pop();
+    StackItem item1 = stack.pop();
+    std::cout << "Popped item1: " << item1.str1 << ", " << item1.str2 << ", " << item1.value << std::endl;
+    StackItem item2 = stack.pop();
+    std::cout << "Popped item2: " << item2.str1 << ", " << item2.str2 << ", " << item2.value << std::endl;
+    return 0;
 }
