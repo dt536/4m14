@@ -2,6 +2,7 @@
 #include <vector>
 #include <stdexcept>
 #include <string>
+#include <random>
 
 struct StackItem {
     std::string str1;
@@ -35,13 +36,41 @@ public:
     }
 };
 
+void populate_stack(int num, Stack& stack, std::mt19937& mt) {
+    static const std::vector<std::string> choices = {
+        "dt536", "mb252", "ry297"
+    };
+
+    std::uniform_int_distribution<int> lenDist(4, 12);
+    std::uniform_int_distribution<int> charDist(0, 25);
+    std::uniform_int_distribution<int> valDist(0, 255);
+    std::uniform_int_distribution<std::size_t> choiceDist(0, 2);
+
+    for (int i = 0; i < num; ++i) {
+        int strLength = lenDist(mt);
+
+        std::string str1;
+        str1.reserve(strLength);
+        for (int j = 0; j < strLength; ++j) {
+            str1.push_back(static_cast<char>('a' + charDist(mt)));
+        }
+        std::string str2 = choices[choiceDist(mt)];
+        int val = valDist(mt);
+
+        stack.push(str1, str2, val);
+    }
+}
+
+
 int main() {
+    unsigned seed = 12345;          
+    std::mt19937 mt(seed);
     Stack stack;
     stack.push("hello", "world", 42);
-    stack.push("cambridge", "engineering", 100);
-    StackItem item1 = stack.pop();
-    std::cout << "Popped item1: " << item1.str1 << ", " << item1.str2 << ", " << item1.value << std::endl;
-    StackItem item2 = stack.pop();
-    std::cout << "Popped item2: " << item2.str1 << ", " << item2.str2 << ", " << item2.value << std::endl;
+    populate_stack(5, stack, mt);
+    for (int i = 0; i < 5; ++i) {
+        StackItem item = stack.pop();
+        std::cout << "Popped item: " << item.str1 << ", " << item.str2 << ", " << item.value << std::endl;
+    }
     return 0;
 }
