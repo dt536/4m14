@@ -7,7 +7,7 @@ to synchronize console output across threads. Each thread locks the mutex before
 
 I encountered a deadlock issue as there were clashes between the stack mutex and the console output mutex. One thread had acquired the stack mutex
 and was waiting to acquire the console output mutex, while another thread had acquired the console output mutex and was waiting to acquire the stack mutex.
-To resolve this, I avoided nested locks and mantained a lock hierarchy where the stack mutex is always acquired before the console output mutex.*/
+To resolve this, I avoided nested locks and all stack operations are completed before acquiring the console output mutex.*/
 
 #include <iostream>
 #include <vector>
