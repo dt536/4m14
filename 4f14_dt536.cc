@@ -9,15 +9,18 @@
 #include <thread>
 #include <mutex>
 #include <algorithm>
+#include <chrono>
+#include <sstream>
 
+// Global mutex for synchronizing console output
 std::mutex cout_mutex;
 
-struct StackItem {
+struct stack_item {
     std::string str1;
     std::string str2;
     int value;
 
-    StackItem(const std::string& f, const std::string& s, int v)
+    stack_item(const std::string& f, const std::string& s, int v)
         : str1(f), str2(s), value(v) {}
 };
 
@@ -29,37 +32,38 @@ struct stack_stats {
 
 class Stack {
 private:
-    std::vector<StackItem> items;
-    mutable std::mutex m_;
+    std::vector<stack_item> items;
+    mutable std::mutex stack_mutex;
 
 public:
     // Add an item to the stack
     void push(const std::string& str1,
               const std::string& str2,
               int value) {
-        std::lock_guard<std::mutex> lock(m_);
+        std::lock_guard<std::mutex> lock(stack_mutex);
         items.emplace_back(str1, str2, value);
     }
 
     // Remove and return the top item
-    StackItem pop() {
-        std::lock_guard<std::mutex> lock(m_);
+    stack_item pop() {
+        std::lock_guard<std::mutex> lock(stack_mutex);
         if (items.empty()) {
             throw std::out_of_range("Stack is empty");
         }
-        StackItem top = items.back();
+        stack_item top = items.back();
         items.pop_back();
         return top;
     }
 
+    // Get the current size of the stack
     std::size_t size() const {
-        std::lock_guard<std::mutex> lock(m_);
+        std::lock_guard<std::mutex> lock(stack_mutex);
         return items.size();
     } 
 
+    // Remove an item with the minimum value and maximum value, then remove the top item
     int remove_min_max_top(std::mt19937& rng) {
-        // Remove an item with the minimum value and maximum value
-        std::lock_guard<std::mutex> lock(m_);  
+        std::lock_guard<std::mutex> lock(stack_mutex);  
         if (items.empty()) {
             return 0;
         }
@@ -103,9 +107,10 @@ public:
         }
         return 1;
     }
-
+    
+    // Reverse the stack and return the sum, min, and max of the values
     stack_stats reverse() {
-        std::lock_guard<std::mutex> lock(m_);
+        std::lock_guard<std::mutex> lock(stack_mutex);
         if (items.empty()) {
             return {0, 256, -1};
         }
@@ -125,8 +130,9 @@ public:
         return {sum, min, max}; 
     }   
 
-    std::vector<StackItem> print_items() const {
-        std::lock_guard<std::mutex> lock(m_);
+    // Get a copy of the current stack items
+    std::vector<stack_item> get_items() const {
+        std::lock_guard<std::mutex> lock(stack_mutex);
         if (items.empty()) {
             throw std::out_of_range("Stack is empty");
         }
@@ -134,8 +140,9 @@ public:
 
     }
 
+    // Get the crd id with the largest total value
     std::string largest_val(std::mt19937& rng) const {
-        std::lock_guard<std::mutex> lock(m_);
+        std::lock_guard<std::mutex> lock(stack_mutex);
         if (items.empty()) {
             throw std::out_of_range("Stack is empty");
         }
@@ -165,6 +172,7 @@ public:
     }
 };
 
+// Function to populate the stack with random items
 void populate_stack(int num, Stack& stack, std::mt19937& mt) {
     static const std::vector<std::string> choices = {
         "dt536", "mb252", "ry297"
@@ -191,22 +199,22 @@ void populate_stack(int num, Stack& stack, std::mt19937& mt) {
 }
 
 
-
-void thread_remove(Stack& stack){
+void thread4(Stack& stack){
     unsigned seed = 123;
     std::mt19937 mt(seed);
     while (true) {
-    int removed = stack.remove_min_max_top(mt); // removes min, max, then top
+    int removed = stack.remove_min_max_top(mt); 
     if (removed == 0) break;  
+    int sz = stack.size();
     {
     std::lock_guard<std::mutex> lock(cout_mutex);
-    std::cout << "Stack size: " << stack.size() << std::endl;
+    std::cout << "Stack size: " << sz << std::endl;
     }   
     std::this_thread::sleep_for(std::chrono::milliseconds(50)); // 0.05s        
     }   
 }
 
-void thread_reverse(Stack& stack){
+void thread1(Stack& stack){
     while(true){
         stack_stats stats = stack.reverse(); 
         if (stats.sum == 0 && stats.min == 256 && stats.max == -1) break;
@@ -220,35 +228,43 @@ void thread_reverse(Stack& stack){
     }
 }
 
-void thread_print(Stack& stack){
-    while(true){
+void thread2(Stack& stack) {
+    while (true) {
+        std::vector<stack_item> current_stack;
+
         try {
-            std::vector<StackItem> current_stack = stack.print_items();
-            for (const auto& item : current_stack) {
-                {
-                std::lock_guard<std::mutex> lock(cout_mutex);
-                std::cout <<  "Item: " << item.str1 << " " << item.str2 << " " << item.value << std::endl;
-                }
-            }
-        } catch (const std::out_of_range& e) {
+            current_stack = stack.get_items(); 
+        } catch (const std::out_of_range&) {
             break;
-    }
-        std::this_thread::sleep_for(std::chrono::milliseconds(500)); //longer delay
+        }
+
+        std::ostringstream oss;
+        for (const auto& item : current_stack) {
+            oss << "Item: " << item.str1 << " " << item.str2 << " " << item.value << '\n';
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(cout_mutex);
+            std::cout << oss.str();
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500)); // longer delay
     }
 }
 
-void thread_crs_id(Stack& stack){
-    unsigned seed = 123;
+void thread3(Stack& stack){
+    unsigned seed = 42;
     std::mt19937 mt(seed);
     while(true){
-        {
-        std::lock_guard<std::mutex> lock(cout_mutex);
-        try{
-            std::string crs_id = stack.largest_val(mt);
-            std::cout << "Largest CRS ID: " << crs_id << std::endl;
-        } catch (const std::out_of_range& e){
+        std::string crs_id;
+        try {
+            crs_id = stack.largest_val(mt); 
+        } catch (const std::out_of_range&) {
             break;
         }
+
+        {
+            std::lock_guard<std::mutex> lock(cout_mutex);
+            std::cout << "Largest CRS ID: " << crs_id << "\n";
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(50)); // 0.5s delay
     }
@@ -260,17 +276,17 @@ int main() {
     Stack stack;
     populate_stack(738, stack, mt);
     std::cout << "Initial stack size: " << stack.size() << std::endl;
-    //thread 4
-    std::thread t4(thread_remove, std::ref(stack));
     //thread 1
-    std::thread t1(thread_reverse, std::ref(stack));
+    std::thread t1(thread1, std::ref(stack));
     //thread 2
-    std::thread t2(thread_print, std::ref(stack));
+    std::thread t2(thread2, std::ref(stack));
     //thread 3
-    std::thread t3(thread_crs_id, std::ref(stack));
-    t3.join();
-    t4.join();
+    std::thread t3(thread3, std::ref(stack));
+    //thread 4
+    std::thread t4(thread4, std::ref(stack));
     t1.join();
     t2.join();
+    t3.join();
+    t4.join();
     return 0;
 }
