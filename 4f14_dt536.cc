@@ -1,5 +1,13 @@
-//Conflict between cout lock and stack lock fixed by removing cout lock in thread_reverse function.
-//cout could be unlocked but stack lock still held, causing misprints.
+/*I started by defining the stack_item struct to hold the string and integer values for each item in the stack. I then implemented a Stack class 
+that uses a std::vector as the underlying container and a std::mutex to ensure thread-safe access. The mutex protects all operations that read from or modify 
+the stack when multiple threads are executing concurrently. Each thread function interacts with the stack exclusively through the public methods of the Stack class.
+
+One challenge I faced was the clashing console output caused by multiple threads writing to std::cout simultaneously. To solve this, I used a global mutex 
+to synchronize console output across threads. Each thread locks the mutex before printing and unlocks it afterward. 
+
+I encountered a deadlock issue as there were clashes between the stack mutex and the console output mutex. One thread had acquired the stack mutex
+and was waiting to acquire the console output mutex, while another thread had acquired the console output mutex and was waiting to acquire the stack mutex.
+To resolve this, I avoided nested locks and mantained a lock hierarchy where the stack mutex is always acquired before the console output mutex.*/
 
 #include <iostream>
 #include <vector>
@@ -200,7 +208,7 @@ void populate_stack(int num, Stack& stack, std::mt19937& mt) {
 
 
 void thread4(Stack& stack){
-    unsigned seed = 123;
+    unsigned seed = 567;
     std::mt19937 mt(seed);
     while (true) {
     int removed = stack.remove_min_max_top(mt); 
@@ -271,7 +279,7 @@ void thread3(Stack& stack){
 }
 
 int main() {
-    unsigned seed = 123;          
+    unsigned seed = 123456;          
     std::mt19937 mt(seed);
     Stack stack;
     populate_stack(738, stack, mt);
